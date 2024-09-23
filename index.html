@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dictaphone - Envoi Webhook</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        padding: 20px;
+        background-color: #f0f0f0;
+      }
+      h1 {
+        margin-bottom: 20px;
+      }
+      .container {
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+      }
+      input,
+      button {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        font-size: 16px;
+      }
+      .recording {
+        border: 2px solid red;
+        padding: 10px;
+        margin: 20px 0;
+        color: red;
+        display: none;
+      }
+      #actions button {
+        width: 30%;
+        margin: 0 5px;
+      }
+      #confirm,
+      #error {
+        display: none;
+        margin: 20px 0;
+        color: white;
+        padding: 10px;
+      }
+      #confirm {
+        background-color: green;
+      }
+      #error {
+        background-color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Dictaphone Webhook</h1>
+      <input
+        type="text"
+        id="webhookUrl"
+        placeholder="Entrez l'URL du Webhook"
+        required
+      />
+      <button id="startBtn">Commencer</button>
+      <button id="stopBtn" style="display: none">Stop</button>
+      <div id="recording" class="recording">🎙️ Enregistrement en cours...</div>
+
+      <div id="actions" style="display: none">
+        <button id="sendBtn">Envoyer</button>
+        <button id="resumeBtn">Reprendre</button>
+        <button id="restartBtn">Recommencer</button>
+      </div>
+
+      <div id="confirm">
+        Êtes-vous sûr d'envoyer ce message ?
+        <button id="confirmSendBtn">Envoyer</button>
+        <button id="cancelSendBtn">Revenir</button>
+      </div>
+
+      <div id="error"></div>
+      <div id="success" style="display: none">
+        Le message a bien été envoyé !
+      </div>
+    </div>
+
+    <script>
+      let mediaRecorder;
+      let audioChunks = [];
+      let webhookUrlInput = document.getElementById("webhookUrl");
+      let startBtn = document.getElementById("startBtn");
+      let stopBtn = document.getElementById("stopBtn");
+      let recordingDiv = document.getElementById("recording");
+      let actionsDiv = document.getElementById("actions");
+      let sendBtn = document.getElementById("sendBtn");
+      let resumeBtn = document.getElementById("resumeBtn");
+      let restartBtn = document.getElementById("restartBtn");
+      let confirmDiv = document.getElementById("confirm");
+      let confirmSendBtn = document.getElementById("confirmSendBtn");
+      let cancelSendBtn = document.getElementById("cancelSendBtn");
+      let errorDiv = document.getElementById("error");
+      let successDiv = document.getElementById("success");
+
+      // Fonction pour démarrer l'enregistrement
+      startBtn.addEventListener("click", async () => {
+        if (webhookUrlInput.value === "") {
+          alert("Veuillez entrer l'URL du Webhook !");
+          return;
+        }
+
+        audioChunks = [];
+        let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+
+        mediaRecorder.start();
+        startBtn.style.display = "none";
+        stopBtn.style.display = "block";
+        recordingDiv.style.display = "block";
+      });
+
+      // Fonction pour arrêter l'enregistrement
+      stopBtn.addEventListener("click", () => {
+        mediaRecorder.stop();
+        stopBtn.style.display = "none";
+        recordingDiv.style.display = "none";
+        actionsDiv.style.display = "block";
+      });
+
+      // Reprendre l'enregistrement
+      resumeBtn.addEventListener("click", () => {
+        mediaRecorder.resume();
+        recordingDiv.style.display = "block";
+      });
+
+      // Recommencer l'enregistrement
+      restartBtn.addEventListener("click", () => {
+        mediaRecorder.stop();
+        audioChunks = [];
+        startBtn.style.display = "block";
+        actionsDiv.style.display = "none";
+      });
+
+      // Confirmation d'envoi
+      sendBtn.addEventListener("click", () => {
+        confirmDiv.style.display = "block";
+      });
+
+      cancelSendBtn.addEventListener("click", () => {
+        confirmDiv.style.display = "none";
+      });
+
+      // Envoi du fichier audio transformé en texte
+      confirmSendBtn.addEventListener("click", async () => {
+        let audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+        let formData = new FormData();
+        formData.append("file", audioBlob, "message.wav");
+
+        try {
+          let response = await fetch(webhookUrlInput.value, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (response.ok) {
+            successDiv.style.display = "block";
+            confirmDiv.style.display = "none";
+            actionsDiv.style.display = "none";
+            errorDiv.style.display = "none";
+          } else {
+            throw new Error("Erreur d'envoi");
+          }
+        } catch (error) {
+          errorDiv.style.display = "block";
+          errorDiv.innerText = "Échec de l'envoi du message.";
+        }
+      });
+    </script>
+  </body>
+</html>
